@@ -66,16 +66,15 @@ get ::
   Lens s t a b
   -> s
   -> a
-get (Lens r) =
-  getConst . r Const
+get (Lens r) = getConst . r Const
 
 set ::
   Lens s t a b
   -> s
   -> b
   -> t
-set (Lens r) a b =
-  getIdentity (r (const (Identity b)) a)
+set (Lens r) s b = getIdentity $ f s
+  where f = r (\_ -> Identity b)
 
 -- | The get/set law of lenses. This function should always return @True@.
 getsetLaw ::
@@ -103,7 +102,7 @@ setsetLaw ::
   -> s
   -> b
   -> b
-  -> Bool 
+  -> Bool
 setsetLaw l a b1 b2 =
   set l (set l a b1) b2 == set l a b2
 
@@ -125,8 +124,7 @@ modify ::
   -> (a -> b)
   -> s
   -> t
-modify =
-  error "todo: modify"
+modify l f s = set l s (f $ get l s)
 
 -- | An alias for @modify@.
 (%~) ::
@@ -155,8 +153,7 @@ infixr 4 %~
   -> b
   -> s
   -> t
-(.~) =
-  error "todo: (.~)"
+(.~) l = flip (set l)
 
 infixl 5 .~
 
@@ -175,9 +172,8 @@ fmodify ::
   Lens s t a b
   -> (a -> f b)
   -> s
-  -> f t 
-fmodify =
-  error "todo: fmodify"
+  -> f t
+fmodify (Lens r) = r
 
 -- |
 --
@@ -209,8 +205,8 @@ infixl 5 |=
 -- prop> let types = (x :: Int, y :: String) in setsetLaw fstL (x, y) z
 fstL ::
   Lens (a, x) (b, x) a b
-fstL =
-  error "todo: fstL"
+fstL = Lens (\f (a, x) -> (\b -> (b, x)) <$> f a)
+-- (forall f. Functor f => (a -> f b) -> s -> f t)
 
 -- |
 --
@@ -224,8 +220,7 @@ fstL =
 -- prop> let types = (x :: Int, y :: String) in setsetLaw sndL (x, y) z
 sndL ::
   Lens (x, a) (x, b) a b
-sndL =
-  error "todo: sndL"
+sndL = Lens (\f (x, a) -> (\b -> (x, b)) <$> f a)
 
 -- |
 --
@@ -250,8 +245,10 @@ mapL ::
   Ord k =>
   k
   -> Lens (Map k v) (Map k v) (Maybe v) (Maybe v)
-mapL =
-  error "todo: mapL"
+mapL = \k -> Lens (\f m ->
+  let mv = Map.lookup k m in fmap (\mvv -> case mvv of
+    Just v -> Map.insert k v m
+    Nothing -> Map.delete k m) (f mv))
 
 -- |
 --
@@ -276,8 +273,11 @@ setL ::
   Ord k =>
   k
   -> Lens (Set k) (Set k) Bool Bool
-setL =
-  error "todo: setL"
+setL = \k -> Lens (\f s ->
+  let exists = Set.member k s
+  in fmap (\e -> case e of
+    True -> Set.insert k s
+    False -> Set.delete k s) (f exists))
 
 -- |
 --
@@ -290,8 +290,7 @@ compose ::
   Lens s t a b
   -> Lens q r s t
   -> Lens q r a b
-compose =
-  error "todo: compose"
+compose (Lens l) (Lens r) = Lens (r . l)
 
 -- | An alias for @compose@.
 (|.) ::
@@ -312,8 +311,7 @@ infixr 9 |.
 -- 4
 identity ::
   Lens a b a b
-identity =
-  error "todo: identity"
+identity = Lens ($)
 
 -- |
 --
@@ -326,6 +324,13 @@ product ::
   Lens s t a b
   -> Lens q r c d
   -> Lens (s, q) (t, r) (a, c) (b, d)
+-- product (Lens l) (Lens r) = Lens (\g sq -> (lg g sq, rg g sq))
+--   where rg g = \(q,s) -> r g q
+--         lg g = \(q,s) -> l g s
+-- product (Lens l) (Lens r) = Lens (\f -> _)
+--   where myF :: Functor f => (a, c) -> (a -> f b) -> (c -> f d) -> f (b, d)
+--         myF (tl, tr) lf rf = (lf tl, rf tr)
+  -- where both = \f g (a, b) -> (f a, g b)
 product =
   error "todo: product"
 
@@ -451,8 +456,7 @@ intAndL =
 getSuburb ::
   Person
   -> String
-getSuburb =
-  error "todo: getSuburb"
+getSuburb = get $ suburbL |. addressL
 
 
 -- |
@@ -466,8 +470,7 @@ setStreet ::
   Person
   -> String
   -> Person
-setStreet =
-  error "todo: setStreet"
+setStreet = set $ streetL |. addressL
 
 -- |
 --
@@ -479,8 +482,9 @@ setStreet =
 getAgeAndCountry ::
   (Person, Locality)
   -> (Int, String)
-getAgeAndCountry =
-  error "todo: getAgeAndCountry"
+getAgeAndCountry (p, l) = (get ageL p, get countryL l)
+-- getAgeAndCountry (p, l) = get
+  -- error "todo: getAgeAndCountry"
 
 -- |
 --
@@ -491,9 +495,9 @@ getAgeAndCountry =
 -- (Person 28 "Mary" (Address "83 Mary Ln" "Maryland" (Locality "Some Other City" "Western Mary" "Maristan")),Address "15 Fred St" "Fredville" (Locality "Mary Mary" "Western Mary" "Maristan"))
 setCityAndLocality ::
   (Person, Address) -> (String, Locality) -> (Person, Address)
-setCityAndLocality =
+setCityAndLocality (p, a) (c, l) = --(set cityL p c, set addressL l a)
   error "todo: setCityAndLocality"
-  
+
 -- |
 --
 -- >>> getSuburbOrCity (Left maryAddress)

@@ -98,7 +98,7 @@ import Prelude hiding (product)
 --
 -- class (Foldable t, Functor t) => Traversable t where
 --   traverse ::
---     Applicative f => 
+--     Applicative f =>
 --     (a -> f b)
 --     -> t a
 --     -> f (t b)
@@ -111,17 +111,15 @@ fmapT ::
   (a -> b)
   -> t a
   -> t b
-fmapT =
-  error "todo: fmapT"
+fmapT f ta = getIdentity $ traverse (Identity . f) ta
 
 -- | Let's refactor out the call to @traverse@ as an argument to @fmapT@.
-over :: 
+over ::
   ((a -> Identity b) -> s -> Identity t)
   -> (a -> b)
   -> s
   -> t
-over =
-  error "todo: over"
+over t f = getIdentity . t (Identity . f)
 
 -- | Here is @fmapT@ again, passing @traverse@ to @over@.
 fmapTAgain ::
@@ -129,8 +127,7 @@ fmapTAgain ::
   (a -> b)
   -> t a
   -> t b
-fmapTAgain =
-  error "todo: fmapTAgain"
+fmapTAgain = over traverse
 
 -- | Let's create a type-alias for this type of function.
 type Set s t a b =
@@ -142,7 +139,7 @@ type Set s t a b =
 -- unwrapping.
 sets ::
   ((a -> b) -> s -> t)
-  -> Set s t a b  
+  -> Set s t a b
 sets =
   error "todo: sets"
 
@@ -170,8 +167,8 @@ foldMapT ::
   (a -> b)
   -> t a
   -> b
-foldMapT =
-  error "todo: foldMapT"
+foldMapT f = getConst . traverse (Const . f)
+  -- error "todo: foldMapT"
 
 -- | Let's refactor out the call to @traverse@ as an argument to @foldMapT@.
 foldMapOf ::
@@ -179,8 +176,8 @@ foldMapOf ::
   -> (a -> r)
   -> s
   -> r
-foldMapOf =
-  error "todo: foldMapOf"
+foldMapOf t f = getConst . t (Const . f)
+  -- error "todo: foldMapOf"
 
 -- | Here is @foldMapT@ again, passing @traverse@ to @foldMapOf@.
 foldMapTAgain ::
@@ -188,8 +185,8 @@ foldMapTAgain ::
   (a -> b)
   -> t a
   -> b
-foldMapTAgain =
-  error "todo: foldMapTAgain"
+foldMapTAgain = foldMapOf traverse
+  -- error "todo: foldMapTAgain"
 
 -- | Let's create a type-alias for this type of function.
 type Fold s t a b =
@@ -235,28 +232,29 @@ get =
 -- | Let's generalise @Identity@ and @Const r@ to any @Applicative@ instance.
 type Traversal s t a b =
   forall f.
-  Applicative f =>
-  (a -> f b)
-  -> s
-  -> f t
+  Applicative f => (a -> f b) -> s -> f t
 
 -- | Traverse both sides of a pair.
 both ::
   Traversal (a, a) (b, b) a b
-both =
-  error "todo: both"
+both = \f -> \(l, r) -> g (f l) (f r)
+  where g = \x y -> (,) <$> x <*> y
+  -- error "todo: both"
+  -- (<*>) :: Applicative f => f (a -> b) -> f a -> f b
 
 -- | Traverse the left side of @Either@.
 traverseLeft ::
   Traversal (Either a x) (Either b x) a b
-traverseLeft =
-  error "todo: traverseLeft"
+traverseLeft = \f -> \e -> case e of
+    Left a -> Left <$> (f a)
+    Right x -> pure $ Right x
 
 -- | Traverse the right side of @Either@.
 traverseRight ::
   Traversal (Either x a) (Either x b) a b
-traverseRight =
-  error "todo: traverseRight"
+traverseRight = \f -> \e -> case e of
+    Left x -> pure $ Left x
+    Right a -> Right <$> (f a)
 
 type Traversal' a b =
   Traversal a a b b
@@ -287,10 +285,13 @@ type Prism s t a b =
 _Left ::
   Prism (Either a x) (Either b x) a b
 _Left =
-  error "todo: _Left"
+  prism Left (\e -> case e of
+    Left a -> Right a
+    Right x -> Left (Right x))
+  -- error "todo: _Left"
 
 _Right ::
-  Prism (Either x a) (Either x b) a b 
+  Prism (Either x a) (Either x b) a b
 _Right =
   error "todo: _Right"
 
@@ -298,18 +299,19 @@ prism ::
   (b -> t)
   -> (s -> Either t a)
   -> Prism s t a b
-prism =
-  error "todo: prism"
+prism = \to fr -> dimap fr (either pure (fmap to)) . right
 
 _Just ::
   Prism (Maybe a) (Maybe b) a b
-_Just =
-  error "todo: _Just"
+_Just = prism pure (\m -> case m of
+                            Nothing -> Left Nothing
+                            Just a -> pure a)
 
 _Nothing ::
   Prism (Maybe a) (Maybe a) () ()
-_Nothing =
-  error "todo: _Nothing"
+_Nothing = prism (const Nothing) (\m -> case m of
+  Nothing -> Right ()
+  Just a -> Left (Just a))
 
 setP ::
   Prism s t a b
@@ -396,7 +398,7 @@ fmodify ::
   Lens s t a b
   -> (a -> f b)
   -> s
-  -> f t 
+  -> f t
 fmodify _ _ _ =
   error "todo: fmodify"
 
@@ -700,7 +702,7 @@ setCityAndLocality ::
   (Person, Address) -> (String, Locality) -> (Person, Address)
 setCityAndLocality =
   error "todo: setCityAndLocality"
-  
+
 -- |
 --
 -- >>> getSuburbOrCity (Left maryAddress)
